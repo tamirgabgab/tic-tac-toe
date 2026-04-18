@@ -58,6 +58,16 @@ def get_best_move(board, history_x, history_o, player):
     return best_move
 
 
+def make_move(board, hx, ho, index, player):
+    """ביצוע מהלך על הלוח ועדכון היסטוריה"""
+    curr_h = hx if player == 1 else ho
+    if len(curr_h) >= 3:
+        oldest = curr_h.pop(0)
+        board[oldest] = 0
+    board[index] = player
+    curr_h.append(index)
+
+
 def main():
     st.set_page_config(page_title="Dynamic Tic-Tac-Toe Solver")
     st.title("איקס עיגול דינמי - פותר אופטימלי")
@@ -78,45 +88,118 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
+    # ── אתחול session ──────────────────────────────────────────────
     if 'board' not in st.session_state:
         st.session_state.board = [0] * 9
         st.session_state.hx = []
         st.session_state.ho = []
         st.session_state.turn = 1
         st.session_state.show_best = False
+        st.session_state.game_mode = 'pvp'   # 'pvp' | 'pvc'
+        st.session_state.human_side = 1      # 1=X , -1=O
 
-    def handle_click(i_0):
-        if st.session_state.board[i_0] == 0:
-            p = st.session_state.turn
-            curr_h = st.session_state.hx if p == 1 else st.session_state.ho
-            if len(curr_h) >= 3:
-                oldest = curr_h.pop(0)
-                st.session_state.board[oldest] = 0
-            st.session_state.board[i_0] = p
-            curr_h.append(i_0)
-            st.session_state.turn *= -1
+    # ── בחירת מצב משחק ────────────────────────────────────────────
+    st.markdown("### הגדרות משחק")
+    mode_col, side_col = st.columns(2)
 
-    best = get_best_move(st.session_state.board, st.session_state.hx, st.session_state.ho, st.session_state.turn)
+    with mode_col:
+        mode_label = st.radio(
+            "מצב משחק",
+            options=['pvp', 'pvc'],
+            format_func=lambda x: "שחקן נגד שחקן" if x == 'pvp' else "שחקן נגד מחשב",
+            index=0 if st.session_state.game_mode == 'pvp' else 1,
+            horizontal=True,
+            key='mode_radio'
+        )
+        if mode_label != st.session_state.game_mode:
+            st.session_state.game_mode = mode_label
+            # איפוס לוח בהחלפת מצב
+            st.session_state.board = [0] * 9
+            st.session_state.hx = []
+            st.session_state.ho = []
+            st.session_state.turn = 1
+            st.rerun()
+
+    with side_col:
+        if st.session_state.game_mode == 'pvc':
+            side_label = st.radio(
+                "אני משחק בתור",
+                options=[1, -1],
+                format_func=lambda x: "X (מתחיל ראשון)" if x == 1 else "O (מתחיל שני)",
+                index=0 if st.session_state.human_side == 1 else 1,
+                horizontal=True,
+                key='side_radio'
+            )
+            if side_label != st.session_state.human_side:
+                st.session_state.human_side = side_label
+                st.session_state.board = [0] * 9
+                st.session_state.hx = []
+                st.session_state.ho = []
+                st.session_state.turn = 1
+                st.rerun()
+
+    st.divider()
+
+    # ── האם זה תור המחשב? ─────────────────────────────────────────
+    is_pvc = st.session_state.game_mode == 'pvc'
+    computer_side = -st.session_state.human_side  # הצד ההפוך מהאדם
     winner = check_win(st.session_state.board)
+    computer_turn = (
+        is_pvc
+        and winner is None
+        and st.session_state.turn == computer_side
+    )
 
-    # בנה רשימה של סוגי כפתורים לפני הרינדור
+    # אם זה תור המחשב – בצע מהלך אוטומטית
+    if computer_turn:
+        comp_move = get_best_move(
+            st.session_state.board,
+            st.session_state.hx,
+            st.session_state.ho,
+            computer_side
+        )
+        if comp_move != -1:
+            make_move(st.session_state.board, st.session_state.hx, st.session_state.ho, comp_move, computer_side)
+            st.session_state.turn *= -1
+            st.rerun()
+
+    winner = check_win(st.session_state.board)
+    best = get_best_move(st.session_state.board, st.session_state.hx, st.session_state.ho, st.session_state.turn)
+
+    # ── צביעת כפתורים (fading / best) ─────────────────────────────
     best_index = best if (winner is None and st.session_state.get('show_best', True)) else -1
+    # במצב נגד מחשב אל תציג רמז כשזה תור המחשב
+    if is_pvc and st.session_state.turn == computer_side:
+        best_index = -1
+
     fading_index = -1
     if len(st.session_state.hx) == 3 and st.session_state.turn == 1:
         fading_index = st.session_state.hx[0]
     elif len(st.session_state.ho) == 3 and st.session_state.turn == -1:
         fading_index = st.session_state.ho[0]
 
+    # ── לוח המשחק ─────────────────────────────────────────────────
+    # חסום לחיצה אם זה תור המחשב
+    board_disabled = is_pvc and st.session_state.turn == computer_side
+
     cols = st.columns(3)
     for i in range(9):
         with cols[i % 3]:
             val = st.session_state.board[i]
             label = "X" if val == 1 else ("O" if val == -1 else " ")
+            if st.button(label, key=f"btn_{i}", use_container_width=True, type="secondary", disabled=board_disabled):
+                if st.session_state.board[i] == 0 and winner is None:
+                    make_move(
+                        st.session_state.board,
+                        st.session_state.hx,
+                        st.session_state.ho,
+                        i,
+                        st.session_state.turn
+                    )
+                    st.session_state.turn *= -1
+                    st.rerun()
 
-            if st.button(label, key=f"btn_{i}", use_container_width=True, type="secondary"):
-                handle_click(i)
-                st.rerun()
-
+    # ── JavaScript לצבעים ─────────────────────────────────────────
     components.html(f"""
     <script>
     var sessionBest = {best_index};
@@ -130,7 +213,6 @@ def main():
             return t === 'X' || t === 'O' || t === '' || t === ' ';
         }}).slice(0, 9);
 
-        // Streamlit מסדר לפי עמודות - ממיר לסדר שורות
         var colOrder = [0,3,6,1,4,7,2,5,8];
         var orderedBtns = colOrder.map(function(i) {{ return gameBtns[i]; }});
 
@@ -182,10 +264,16 @@ def main():
     </script>
     """, height=1)
 
+    # ── מידע תחתון ────────────────────────────────────────────────
     s_trn = 'X' if st.session_state.turn == 1 else 'O'
+    if is_pvc and st.session_state.turn == computer_side:
+        turn_label = f"תור המחשב ({s_trn}) 🤖"
+    else:
+        turn_label = f"תור השחקן: {s_trn}"
+
     st.divider()
     st.markdown(
-        f"<p style='text-align:right; font-size:20px; font-weight:600; margin:0 0 4px 0;'>תור השחקן : {s_trn}</p>",
+        f"<p style='text-align:right; font-size:20px; font-weight:600; margin:0 0 4px 0;'>{turn_label}</p>",
         unsafe_allow_html=True)
 
     if winner:
@@ -213,16 +301,31 @@ def main():
         </script>
         """, height=0)
         winner_char = 'X' if winner == 1 else 'O'
-        style = (
-            "background-color:#d4edda; border:1px solid #c3e6cb; "
-            "border-radius:4px; padding:10px 15px; text-align:right; "
-            "font-size:16px; color:#155724; margin-bottom:16px;"
-        )
-        st.markdown(f'<div style="{style}">המנצח הוא: {winner_char} 🏆</div>', unsafe_allow_html=True)
-    elif best != -1:
-        pass
-        # st.info(f"💡 מהלך מומלץ: משבצת {best}")
+        if is_pvc:
+            if winner == st.session_state.human_side:
+                result_text = f"🏆 כל הכבוד! ניצחת את המחשב! ({winner_char})"
+                result_color = "#d4edda"
+                border_color = "#c3e6cb"
+                text_color = "#155724"
+            else:
+                result_text = f"🤖 המחשב ניצח! ({winner_char})"
+                result_color = "#f8d7da"
+                border_color = "#f5c6cb"
+                text_color = "#721c24"
+        else:
+            result_text = f"המנצח הוא: {winner_char} 🏆"
+            result_color = "#d4edda"
+            border_color = "#c3e6cb"
+            text_color = "#155724"
 
+        style = (
+            f"background-color:{result_color}; border:1px solid {border_color}; "
+            f"border-radius:4px; padding:10px 15px; text-align:right; "
+            f"font-size:16px; color:{text_color}; margin-bottom:16px;"
+        )
+        st.markdown(f'<div style="{style}">{result_text}</div>', unsafe_allow_html=True)
+
+    # ── כפתורי בקרה ───────────────────────────────────────────────
     col1, col2 = st.columns(2)
     with col1:
         if st.button("איפוס משחק", use_container_width=True):
@@ -230,10 +333,17 @@ def main():
                 del st.session_state[key]
             st.rerun()
     with col2:
-        label = "הסתר מהלך מומלץ" if st.session_state.get('show_best', True) else "הצג מהלך מומלץ"
-        if st.button(label, use_container_width=True):
-            st.session_state.show_best = not st.session_state.get('show_best', True)
-            st.rerun()
+        if st.session_state.game_mode == 'pvp':
+            label = "הסתר מהלך מומלץ" if st.session_state.get('show_best', True) else "הצג מהלך מומלץ"
+            if st.button(label, use_container_width=True):
+                st.session_state.show_best = not st.session_state.get('show_best', True)
+                st.rerun()
+        else:
+            # במצב נגד מחשב – רמז רלוונטי רק לתור השחקן
+            label = "הסתר רמז" if st.session_state.get('show_best', True) else "הצג רמז למהלך"
+            if st.button(label, use_container_width=True):
+                st.session_state.show_best = not st.session_state.get('show_best', True)
+                st.rerun()
 
 
 if __name__ == "__main__":
