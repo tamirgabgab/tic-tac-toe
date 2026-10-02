@@ -1,0 +1,40 @@
+% Hebrew report template (text in Hebrew, equations in English). Compile with XeLaTeX:
+%   scripts/compile_latex.sh <this file>   (applies the RTL parenthesis fix automatically)
+\documentclass[11pt,a4paper]{article}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{hebrew}
+\setotherlanguage{english}
+\setmainfont{FreeSerif}
+\newfontfamily\hebrewfont{FreeSerif}
+\newfontfamily\hebrewfontsf{FreeSans}
+\newfontfamily\englishfont{FreeSerif}
+\setlength{\parindent}{0pt}\setlength{\parskip}{4pt}
+\setlist{nosep,leftmargin=1.6em}
+
+\tcbset{breakable,enhanced,boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,
+        fonttitle=\bfseries\sffamily,before skip=7pt,after skip=7pt}
+\newtcolorbox{defbox}[1]{colback=yellow!8,colframe=orange!70!black,title={#1}}   % הגדרה
+\newtcolorbox{thmbox}[1]{colback=blue!4,colframe=blue!55!black,title={#1}}       % משפט
+\newtcolorbox{methbox}[1]{colback=green!6,colframe=green!45!black,title={#1}}    % שיטה
+\newtcolorbox{exbox}[1]{colback=gray!6,colframe=gray!60!black,title={#1}}        % דוגמה
+
+\title{\textbf{כותרת}\\[4pt]\large תת-כותרת}
+\author{}\date{}
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section{פרק ראשון}\label{sec:one}
+טקסט בעברית עם נוסחה $x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}$ באמצע המשפט (ראו פרק \ref{sec:one}).
+
+\begin{thmbox}{משפט}
+לכל $a\neq0$ למשוואה $ax^2+bx+c=0$ יש שני פתרונות מרוכבים.
+\end{thmbox}
+\end{document}
